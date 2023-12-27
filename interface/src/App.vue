@@ -8,16 +8,10 @@
     </h1>
     <div class="settings">
       <div>
-        <input type="radio" id="easy" v-model="difficulty" value="easy" />
-        <label for="easy">Easy</label>
-        <input type="radio" id="hard" v-model="difficulty" value="hard" />
-        <label for="easy">Hard</label>
-      </div>
-      <div>
         <input type="radio" id="single-p" @click="resetBoard()" v-model="mode" value="SinglePlayer" />
         <label for="single-p">Versus AI</label>
         <input type="radio" id="two-p" @click="resetBoard()" v-model="mode" value="TwoPlayers" />
-        <label for="two-p">Two Player Mode</label>
+        <label for="two-p">AI vs AI</label>
       </div>
     </div>
     <div class="wrapper">
@@ -35,13 +29,14 @@
         </div>
       </div>
     </div>
-    <button v-show="gameOver" type="button" @click="resetBoard()">Reset</button>
+    <button type="button" @click="resetBoard()">Reset</button>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUpdated } from 'vue';
-import * as connect4 from './connect4';
+import { ref, onMounted } from 'vue';
+import { io } from 'socket.io-client';
+
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -53,95 +48,43 @@ function highlightPieces(pieces) {
   });
 }
 
-const board = ref(connect4.createBoard());
+const board = ref([]);
 const turn = ref(0);
 const player1 = ref(0);
-const player2 = ref(1);
-const red = ref(connect4.Red);
-const yellow = ref(connect4.Yellow);
-const empty = ref(connect4.Empty);
+const player2 = ref(2);
+const red = ref(1);
+const yellow = ref(2);
+const empty = ref();
 const gameOver = ref(false);
-const difficulty = ref('easy');
-const mode = ref('SinglePlayer');
 
-function takeTurn(column) {
-  if (
-    !gameOver.value &&
-    (turn.value === player1.value ||
-      (turn.value === player2.value && mode.value === 'TwoPlayers')) &&
-    connect4.isValidColumn(board.value, column)
-  ) {
-    const row = connect4.getOpenRow(board.value, column);
-    const color = turn.value === player1.value ? red.value : yellow.value;
-    connect4.dropPiece(board.value, row, column, color);
-    if (connect4.isWinningMove(board.value, color)) {
-      gameOver.value = true;
-    } else {
-      turn.value += 1;
-      turn.value %= 2;
-      if (mode.value === 'SinglePlayer') {
-        sleep(1000).then(() => {
-          AITurn();
-        });
-      }
-    }
-    console.log(board.value);
-  }
-}
 
-function AITurn() {
-  let column = 0;
-  if (difficulty.value === 'easy') {
-    column = selectBestColumn();
-  } else {
-    const result = connect4.minimax(board.value, 2, -Infinity, Infinity, true);
-    column = result.column;
-  }
-  const row = connect4.getOpenRow(board.value, column);
-  connect4.dropPiece(board.value, row, column, yellow.value);
-  if (connect4.isWinningMove(board.value, yellow.value)) {
-    gameOver.value = true;
-  } else {
-    turn.value += 1;
-    turn.value %= 2;
-  }
-}
 
-function selectBestColumn() {
-  const validColumns = connect4.getValidColumns(board.value);
-  let highestScore = -1000;
-  let column = Math.floor(Math.random() * validColumns.length);
-  for (let i = 0; i < validColumns.length; i++) {
-    const newColumn = validColumns[i];
-    const row = connect4.getOpenRow(board.value, newColumn);
-    const boardCopy = connect4.copyBoard(board.value);
-    connect4.dropPiece(boardCopy, row, newColumn, yellow.value);
-    const newScore = connect4.boardScore(boardCopy);
-    if (newScore > highestScore) {
-      highestScore = newScore;
-      column = newColumn;
-    }
-  }
-  return column;
-}
+const socket = io('http://localhost:5000');
 
+
+socket.on('initial_board', (data) => {
+  board.value = data.board;
+  console.log(data.board);
+  console.log(board.value);
+});
+
+// reset board
 function resetBoard() {
-  board.value = connect4.createBoard();
-  gameOver.value = false;
-  turn.value = player1.value;
+  socket.emit('reset_board');
 }
 
-onMounted(() => {
-  board.value = connect4.createBoard();
+socket.on('update_board', (data) => {
+  board.value = data.board;
+  console.log("Updated Board:", data.board);
 });
 
-onUpdated(() => {
-  if (gameOver.value) {
-    const color = turn.value === player1.value ? red.value : yellow.value;
-    const winningPieces = connect4.getWinningPieces(board.value, color);
-    highlightPieces(winningPieces);
+function takeTurn(columnIndex) {
+  if (!gameOver.value) {
+    socket.emit('take_turn', { column: columnIndex, player: player1.value, piece: red.value });
   }
-});
+}
+
+
 </script>
 
 <style>
@@ -204,6 +147,18 @@ circle.red.flash {
 
 circle.yellow.flash {
   animation: pulse-yellow 1.2s ease-in-out infinite;
+}
+
+button {
+  margin-top: 20px;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  background-color: #0f55ff;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
 }
 
 @keyframes pulse-yellow {
