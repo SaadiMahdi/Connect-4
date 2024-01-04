@@ -1,16 +1,19 @@
 <template>
   <div id="app">
     <h1 v-show="!gameOver">
-      Player <span v-if="turn == player1">1</span><span v-else>2</span>
+      Player {{ currentPlayer }}'s Turn
     </h1>
     <h1 v-show="gameOver">
-      Player <span v-if="turn == player1">1</span><span v-else>2</span> Wins!
+      <span>
+        Player {{ currentPlayer }} Wins!
+      </span>
+      <!-- <span v-else>It's a Draw!</span> -->
     </h1>
     <div class="settings">
       <div>
-        <input type="radio" id="single-p" @click="resetBoard()" v-model="mode" value="SinglePlayer" />
-        <label for="single-p">Versus AI</label>
-        <input type="radio" id="two-p" @click="resetBoard()" v-model="mode" value="TwoPlayers" />
+        <!-- <input type="radio" id="single-p" @click="resetBoard()" value="SinglePlayer" />
+        <label for="single-p">Player vs AI</label> -->
+        <input type="radio" id="two-p" @click="playAIvsAI()" value="TwoPlayers" />
         <label for="two-p">AI vs AI</label>
       </div>
     </div>
@@ -56,7 +59,7 @@ const red = ref(1);
 const yellow = ref(2);
 const empty = ref();
 const gameOver = ref(false);
-
+const currentPlayer = ref(1);
 
 
 const socket = io('http://localhost:5000');
@@ -75,15 +78,22 @@ function resetBoard() {
 
 socket.on('update_board', (data) => {
   board.value = data.board;
+  gameOver.value = data.game_over;
+  currentPlayer.value = data.turn;
   console.log("Updated Board:", data.board);
 });
 
 function takeTurn(columnIndex) {
   if (!gameOver.value) {
-    socket.emit('take_turn', { column: columnIndex, player: player1.value, piece: red.value });
+    const player = currentPlayer.value;
+    const piece = player === 1 ? red.value : yellow.value;
+    socket.emit('take_turn', { column: columnIndex, piece: red.value });
   }
 }
 
+function playAIvsAI() {
+  socket.emit('ai_vs_ai');
+}
 
 </script>
 
@@ -130,7 +140,7 @@ function takeTurn(columnIndex) {
 }
 
 circle.empty {
-  fill: #fff;
+  fill: #ffffff;
 }
 
 circle.red {

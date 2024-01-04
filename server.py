@@ -7,9 +7,8 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Initialize board and play instances
 board = ConnectFourBoard()
-play = Play(mode="human_vs_computer")  # You can change the mode as needed
+play = Play(mode="human_vs_computer")
 
 
 @socketio.on("connect")
@@ -32,21 +31,19 @@ def handle_reset_board():
 
     updated_board = board.get_board()
 
-    # Broadcast the updated board state to all connected clients
-    emit("update_board", {"board": updated_board}, broadcast=True)
+    emit("update_board", {"board": updated_board, "player": "pla"}, broadcast=True)
 
 
 def play_ai_turn():
     global board
 
-    # Use Minimax algorithm for AI move
     _, move = play.minimaxAlphaBetaPruning(
         board,
         depth=5,
         alpha=float("-inf"),
         beta=float("inf"),
         maximizingPlayer=True,
-        heuristic_function=ConnectFourBoard.heuristicEval1,
+        heuristic_function=ConnectFourBoard.heuristicEval3,
     )
 
     board.makeMove(move[0], move[1], play.player2_piece)
@@ -54,16 +51,14 @@ def play_ai_turn():
     print(f"AI made a move in column {move[1]}")
     print(board.get_board())
 
-    # Check for a winner after AI move
     game_over = board.gameOver()
 
-    # Broadcast the updated board state to all connected clients
     emit(
         "update_board",
         {
             "board": board.get_board(),
             "game_over": game_over,
-            "turn": play.player2_piece,
+            "player": "AI",
         },
         broadcast=True,
     )
@@ -73,10 +68,9 @@ def play_ai_turn():
 def handle_take_turn(data):
     print("Received take_turn event from client")
     column = data["column"]
-    player = data["player"]
     piece = data["piece"]
 
-    print(f"Player {player} made a move in column {column}")
+    print(f"Player made a move in column {column}")
 
     global board
 
@@ -97,7 +91,6 @@ def handle_take_turn(data):
         {
             "board": board.get_board(),
             "game_over": game_over,
-            "turn": player,
         },
         broadcast=True,
     )
@@ -106,6 +99,77 @@ def handle_take_turn(data):
     if not game_over:
         print("AI is taking its turn")
         play_ai_turn()
+
+
+def play_ai_vs_ai():
+    global board
+
+    while not board.gameOver():
+        # Player 1 (AI) makes a move
+        _, move = play.minimaxAlphaBetaPruning(
+            board,
+            depth=5,
+            alpha=float("-inf"),
+            beta=float("inf"),
+            maximizingPlayer=True,
+            heuristic_function=ConnectFourBoard.heuristicEval3,
+        )
+
+        board.makeMove(move[0], move[1], play.player1_piece)
+
+        print(f"AI 1 made a move in column {move[1]}")
+        print(board.get_board())
+
+        game_over = board.gameOver()
+
+        emit(
+            "update_board",
+            {
+                "board": board.get_board(),
+                "game_over": game_over,
+                "turn": play.player1_piece,
+            },
+            broadcast=True,
+        )
+
+        # If the game is over, break the loop
+        if game_over:
+            break
+
+        # Player 2 (AI) makes a move
+        _, move = play.minimaxAlphaBetaPruning(
+            board,
+            depth=5,
+            alpha=float("-inf"),
+            beta=float("inf"),
+            maximizingPlayer=True,
+            heuristic_function=ConnectFourBoard.heuristicEval2,
+        )
+
+        board.makeMove(move[0], move[1], play.player2_piece)
+
+        print(f"AI 2 made a move in column {move[1]}")
+        print(board.get_board())
+
+        # Check for a winner after AI 2 move
+        game_over = board.gameOver()
+
+        # Broadcast the updated board state to all connected clients
+        emit(
+            "update_board",
+            {
+                "board": board.get_board(),
+                "game_over": game_over,
+                "turn": play.player2_piece,
+            },
+            broadcast=True,
+        )
+
+
+@socketio.on("ai_vs_ai")
+def handle_ai_vs_ai():
+    print("Received ai_vs_ai event from client")
+    play_ai_vs_ai()
 
 
 if __name__ == "__main__":
