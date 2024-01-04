@@ -19,6 +19,15 @@ class ConnectFourBoard:
                     print(cell, end=" | ")
             print("\n" + "-" * (self.cols * 4 - 1))
 
+    def get_board(self):
+        return self.board.tolist()
+
+    def set_board(self, board):
+        self.board = np.array(board)
+
+    def resetBoard(self):
+        self.board = np.zeros((self.rows, self.cols), dtype=int)
+
     def getPossibleMoves(self):
         return [col for col in range(self.cols) if self.board[0][col] == 0]
 
@@ -318,8 +327,3 @@ class Play:
             return -1  # Human wins
         else:
             return 0  # It's a draw
-
-
-mode = input("Choose game mode (human_vs_computer or computer_vs_computer): ").lower()
-game = Play(mode)
-game.play()
