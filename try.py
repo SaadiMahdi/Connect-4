@@ -19,15 +19,6 @@ class ConnectFourBoard:
                     print(cell, end=" | ")
             print("\n" + "-" * (self.cols * 4 - 1))
 
-    def get_board(self):
-        return self.board.tolist()
-
-    def set_board(self, board):
-        self.board = np.array(board)
-
-    def resetBoard(self):
-        self.board = np.zeros((self.rows, self.cols), dtype=int)
-
     def getPossibleMoves(self):
         return [col for col in range(self.cols) if self.board[0][col] == 0]
 
@@ -66,8 +57,8 @@ class ConnectFourBoard:
     def heuristicEval1(self, piece):
         score = 0
 
-        score += 250 * self.countConsecutive(piece, 4)  # Four in a row
-        score += 50 * self.countConsecutive(piece, 3)  # Three in a row
+        score += 300 * self.countConsecutive(piece, 4)  # Four in a row
+        score += 100 * self.countConsecutive(piece, 3)  # Three in a row
         score += 10 * self.countConsecutive(piece, 2)  # Two in a row
         score += 3 * self.countConsecutive(piece, 1)  # One in a row
 
@@ -188,6 +179,38 @@ class ConnectFourBoard:
         else:
             return 0
 
+    def heuristicEval4(self, piece):
+        own_threats = self.countThreats(piece)
+        opponent_piece = 1 if piece == 2 else 2
+        opponent_threats = self.countThreats(opponent_piece)
+        return own_threats - opponent_threats
+
+    def countThreats(self, piece):
+        threats = 0
+        for col in range(self.cols):
+            row = self.findEmptyRow(col)
+            if row is not None:
+                # Check for threats in the current position
+                self.board[row][col] = piece
+                if self.win(piece):
+                    threats += 1
+                self.board[row][col] = 0  # Reset the board to the original state
+        return threats
+
+    def findEmptyRow(self, col):
+        for row in range(self.rows - 1, -1, -1):
+            if self.board[row][col] == 0:
+                return row
+        return None
+
+    # NOOOO
+    def heuristicEval5(self, piece):
+        center_column = self.cols // 2
+        center_control = sum(
+            1 for row in range(self.rows) if self.board[row][center_column] == piece
+        )
+        return 5 * center_control
+
 
 class Play:
     def __init__(self, mode="human_vs_computer"):
@@ -196,7 +219,7 @@ class Play:
         self.player1_piece = 1
         self.player2_piece = 2
         self.player1_heuristic = ConnectFourBoard.heuristicEval1
-        self.player2_heuristic = ConnectFourBoard.heuristicEval2
+        self.player2_heuristic = ConnectFourBoard.heuristicEval4
 
     def humanTurn(self):
         print("Human's turn!!!")
@@ -327,3 +350,8 @@ class Play:
             return -1  # Human wins
         else:
             return 0  # It's a draw
+
+
+mode = input("Choose game mode (human_vs_computer or computer_vs_computer): ").lower()
+game = Play(mode)
+game.play()

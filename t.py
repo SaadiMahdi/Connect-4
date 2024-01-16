@@ -216,6 +216,30 @@ class Play:
         )
         self.board.makeMove(move[0], move[1], player_piece)
 
+    def play(self):
+        while not self.board.gameOver():
+            self.board.drawBoard()
+            if self.mode == "1":
+                print("human_vs_computer")
+                self.humanTurn()
+                if not self.board.gameOver():
+                    self.board.drawBoard()
+                    self.computerTurn(self.player2_piece, self.player2_heuristic)
+            elif self.mode == "2":
+                print("computer_vs_computer")
+                self.computerTurn(self.player1_piece, self.player1_heuristic)
+                if not self.board.gameOver():
+                    self.board.drawBoard()
+                    self.computerTurn(self.player2_piece, self.player2_heuristic)
+
+        self.board.drawBoard()
+        if self.board.win(self.player1_piece):
+            print("Player 1 wins!" if self.mode == "1" else "Computer 1 wins!")
+        elif self.board.win(self.player2_piece):
+            print("Computer 2 wins!" if self.mode == "1" else "Computer 2 wins!")
+        else:
+            print("It's a draw!")
+
     def minimaxAlphaBetaPruning(
         self, board, depth, alpha, beta, maximizingPlayer, heuristic_function
     ):
@@ -258,3 +282,50 @@ class Play:
                 if beta <= alpha:
                     break
             return minEval, bestMove
+
+    def monteCarlo(self, simulations=1000):
+        current_player = 2  # Assuming computer plays first
+        best_score = float("-inf")
+        best_move = None
+
+        for col in self.board.getPossibleMoves():
+            row = max(
+                [r for r in range(self.board.rows) if self.board.board[r][col] == 0]
+            )
+            self.board.makeMove(row, col, current_player)
+            total_score = 0
+
+            for _ in range(simulations):
+                temp_board = copy.deepcopy(self.board)  # Make a copy for simulation
+                total_score += self.simulateRandomGame(temp_board, current_player)
+
+            average_score = total_score / simulations
+
+            if average_score > best_score:
+                best_score = average_score
+                best_move = (row, col)
+
+            self.board.makeMove(row, col, 0)  # Undo the move for next iteration
+
+        return best_move
+
+    def simulateRandomGame(self, board, current_player):
+        while not board.gameOver():
+            possible_moves = board.getPossibleMoves()
+            random_move = random.choice(possible_moves)
+            row = max(
+                [r for r in range(board.rows) if board.board[r][random_move] == 0]
+            )
+            board.makeMove(row, random_move, current_player)
+            current_player = 3 - current_player  # Switch player (1 to 2, or 2 to 1)
+        if board.win(2):  # Assuming computer is player 2
+            return 1  # Computer wins
+        elif board.win(1):
+            return -1  # Human wins
+        else:
+            return 0  # It's a draw
+
+
+mode = input("Choose game mode (human_vs_computer or computer_vs_computer): ").lower()
+game = Play(mode)
+game.play()
