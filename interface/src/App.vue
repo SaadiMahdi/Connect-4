@@ -1,18 +1,18 @@
 <template>
   <div id="app">
     <h1 v-show="!gameOver">
-      Player <span v-if="turn == player1">1</span><span v-else>2</span>
+      Player <span v-if="turn === player1">1</span><span v-else>2</span>
     </h1>
     <h1 v-show="gameOver">
-      Player <span v-if="turn == player1">1</span><span v-else>2</span> Wins!
+      Player <span v-if="turn === player1">1</span><span v-else>2</span> Wins!
     </h1>
     <div class="settings">
-      <div>
+      <!-- <div>
         <input type="radio" id="easy" v-model="difficulty" value="easy" />
         <label for="easy">Easy</label>
         <input type="radio" id="hard" v-model="difficulty" value="hard" />
-        <label for="easy">Hard</label>
-      </div>
+        <label for="hard">Hard</label>
+      </div> -->
       <div>
         <input type="radio" id="single-p" @click="resetBoard()" v-model="mode" value="SinglePlayer" />
         <label for="single-p">Versus AI</label>
@@ -27,9 +27,9 @@
         <div v-for="(row, rowIndex) in board" :key="rowIndex" class="row">
           <svg v-for="(column, columnIndex) in row" :key="columnIndex" width="50" height="50">
             <circle cx="25" cy="25" r="20" :id="'circle-' + rowIndex + '-' + columnIndex" :class="{
-              empty: column == empty,
-              red: column == red,
-              yellow: column == yellow
+              empty: column === empty,
+              red: column === red,
+              yellow: column === yellow
             }" />
           </svg>
         </div>
@@ -41,7 +41,10 @@
 
 <script setup>
 import { ref, onMounted, onUpdated } from 'vue';
-import * as connect4 from './connect4';
+import axios from 'axios';
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:5000');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -53,96 +56,116 @@ function highlightPieces(pieces) {
   });
 }
 
-const board = ref(connect4.createBoard());
+const board = ref([]);
 const turn = ref(0);
-const player1 = ref(0);
-const player2 = ref(1);
-const red = ref(connect4.Red);
-const yellow = ref(connect4.Yellow);
-const empty = ref(connect4.Empty);
+const player1 = ref(1);
+const player2 = ref(2);
+const red = ref(1);
+const yellow = ref(2);
+const empty = ref(0);
 const gameOver = ref(false);
-const difficulty = ref('easy');
 const mode = ref('SinglePlayer');
 
-function takeTurn(column) {
-  if (
-    !gameOver.value &&
-    (turn.value === player1.value ||
-      (turn.value === player2.value && mode.value === 'TwoPlayers')) &&
-    connect4.isValidColumn(board.value, column)
-  ) {
-    const row = connect4.getOpenRow(board.value, column);
-    const color = turn.value === player1.value ? red.value : yellow.value;
-    connect4.dropPiece(board.value, row, column, color);
-    if (connect4.isWinningMove(board.value, color)) {
-      gameOver.value = true;
-    } else {
-      turn.value += 1;
-      turn.value %= 2;
-      if (mode.value === 'SinglePlayer') {
-        sleep(1000).then(() => {
-          AITurn();
-        });
-      }
-    }
-    console.log(board.value);
-  }
-}
-
-function AITurn() {
-  let column = 0;
-  if (difficulty.value === 'easy') {
-    column = selectBestColumn();
-  } else {
-    const result = connect4.minimax(board.value, 2, -Infinity, Infinity, true);
-    column = result.column;
-  }
-  const row = connect4.getOpenRow(board.value, column);
-  connect4.dropPiece(board.value, row, column, yellow.value);
-  if (connect4.isWinningMove(board.value, yellow.value)) {
-    gameOver.value = true;
-  } else {
-    turn.value += 1;
-    turn.value %= 2;
-  }
-}
-
-function selectBestColumn() {
-  const validColumns = connect4.getValidColumns(board.value);
-  let highestScore = -1000;
-  let column = Math.floor(Math.random() * validColumns.length);
-  for (let i = 0; i < validColumns.length; i++) {
-    const newColumn = validColumns[i];
-    const row = connect4.getOpenRow(board.value, newColumn);
-    const boardCopy = connect4.copyBoard(board.value);
-    connect4.dropPiece(boardCopy, row, newColumn, yellow.value);
-    const newScore = connect4.boardScore(boardCopy);
-    if (newScore > highestScore) {
-      highestScore = newScore;
-      column = newColumn;
-    }
-  }
-  return column;
-}
-
-function resetBoard() {
-  board.value = connect4.createBoard();
-  gameOver.value = false;
-  turn.value = player1.value;
-}
-
-onMounted(() => {
-  board.value = connect4.createBoard();
+socket.on('initial_board', (data) => {
+  board.value = data.board;
 });
 
-onUpdated(() => {
+socket.on('update_board', (data) => {
+  board.value = data.board;
+  gameOver.value = data.game_over;
   if (gameOver.value) {
-    const color = turn.value === player1.value ? red.value : yellow.value;
-    const winningPieces = connect4.getWinningPieces(board.value, color);
-    highlightPieces(winningPieces);
+    highlightPieces(data.winning_pieces);
+  }
+  if (!gameOver.value) {
+    turn.value = turn.value === player1.value ? player2.value : player1.value;
+  }
+  if (!gameOver.value && mode.value === 'SinglePlayer') {
+    sleep(500).then(() => {
+      takeAITurn();
+    });
   }
 });
+
+
+
+// async function resetBoard() {
+//   try {
+//     // Make a POST request to reset the board on the Flask server
+//     await axios.post('http://localhost:5000/api/reset');
+//     // Fetch the initial board state from the server
+//     const response = await axios.get('http://localhost:5000/api/board');
+//     board.value = response.data.board;
+//     gameOver.value = false;
+//     turn.value = player1.value;
+//   } catch (error) {
+//     console.error('Error during board reset:', error);
+//   }
+// }
+
+// async function takeTurn(columnIndex) {
+//   try {
+//     console.log('Before axios POST request');
+//     const response = await axios.post('http://localhost:5000/api/take_turn', {
+//       column: columnIndex,
+//       board: board.value,
+//     });
+//     console.log('After axios POST request', response);
+
+//     board.value = response.data.board;
+//     gameOver.value = response.data.game_over;
+
+//     if (gameOver.value) {
+//       highlightPieces(response.data.winning_pieces);
+//     }
+
+//     if (!gameOver.value) {
+//       turn.value = turn.value === player1.value ? player2.value : player1.value;
+//     }
+
+//     if (!gameOver.value && mode.value === 'SinglePlayer') {
+//       await sleep(500);
+//       await takeAITurn();
+//     }
+//   } catch (error) {
+//     console.error('Error during turn:', error);
+//   }
+// }
+
+// async function takeAITurn() {
+//   try {
+//     // Make a POST request to the Flask server to take a turn
+//     const response = await axios.post('http://localhost:5000/api/take_ai_turn', {
+//       difficulty: difficulty.value,
+//       player: turn.value,
+//     });
+//     // Update the board state with the response from the server
+//     board.value = response.data.board;
+//     // Check if the game is over
+//     gameOver.value = response.data.game_over;
+//     // If the game is over, highlight the winning pieces
+//     if (gameOver.value) {
+//       highlightPieces(response.data.winning_pieces);
+//     }
+//     // If the game is not over, switch the turn to the other player
+//     if (!gameOver.value) {
+//       turn.value = turn.value === player1.value ? player2.value : player1.value;
+//     }
+//   } catch (error) {
+//     console.error('Error during AI turn:', error);
+//   }
+// }
+
+// onMounted(() => {
+//   // Fetch the initial board state from the server when the component is mounted
+//   axios.get('http://localhost:5000/api/get_board').then(response => {
+//     console.log(response.data)
+//     board.value = response.data.board;
+//     console.log(board.value)
+//   });
+// });
+
 </script>
+
 
 <style>
 #app {

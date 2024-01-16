@@ -1,4 +1,6 @@
 import numpy as np
+import random
+import copy
 
 
 class ConnectFourBoard:
@@ -16,6 +18,12 @@ class ConnectFourBoard:
                 else:
                     print(cell, end=" | ")
             print("\n" + "-" * (self.cols * 4 - 1))
+
+    def get_board(self):
+        return self.board.tolist()
+
+    def set_board(self, board):
+        self.board = np.array(board)
 
     def getPossibleMoves(self):
         return [col for col in range(self.cols) if self.board[0][col] == 0]
@@ -36,13 +44,11 @@ class ConnectFourBoard:
                 if all(self.board[row + i][col] == piece for i in range(4)):
                     return True
 
-        # Check for a win diagonally (bottom-left to top-right)
         for row in range(3, self.rows):
             for col in range(self.cols - 3):
                 if all(self.board[row - i][col + i] == piece for i in range(4)):
                     return True
 
-        # Check for a win diagonally (top-left to bottom-right)
         for row in range(self.rows - 3):
             for col in range(self.cols - 3):
                 if all(self.board[row + i][col + i] == piece for i in range(4)):
@@ -53,12 +59,14 @@ class ConnectFourBoard:
     def gameOver(self):
         return self.win(1) or self.win(2) or len(self.getPossibleMoves()) == 0
 
-    def heuristicEval(self, piece):
+    # heuristic 1
+    def heuristicEval1(self, piece):
         score = 0
 
-        score += 10 * self.countConsecutive(piece, 4)  # Four in a row
-        score += 5 * self.countConsecutive(piece, 3)  # Three in a row
-        score += 3 * self.countConsecutive(piece, 2)  # Two in a row
+        score += 250 * self.countConsecutive(piece, 4)  # Four in a row
+        score += 50 * self.countConsecutive(piece, 3)  # Three in a row
+        score += 10 * self.countConsecutive(piece, 2)  # Two in a row
+        score += 3 * self.countConsecutive(piece, 1)  # One in a row
 
         return score
 
@@ -100,30 +108,25 @@ class ConnectFourBoard:
 
         return count
 
-    def heuristicEval5(self, piece):
-        if self.win(piece):
-            return 10000
-        return 0
-
+    # heuristic2
     def heuristicConsecutivePieces(self, piece):
         score = 0
         for row in range(self.rows):
             for col in range(self.cols):
                 if self.board[row][col] == piece:
-                    # Check horizontally
                     if col <= self.cols - 4 and self.board[row][col + 3] == piece:
                         score += 1
-                    # Check vertically
+
                     if row <= self.rows - 4 and self.board[row + 3][col] == piece:
                         score += 1
-                    # Check diagonally (bottom-left to top-right)
+
                     if (
                         row >= 3
                         and col <= self.cols - 4
                         and self.board[row - 3][col + 3] == piece
                     ):
                         score += 1
-                    # Check diagonally (top-left to bottom-right)
+
                     if (
                         row <= self.rows - 4
                         and col <= self.cols - 4
@@ -132,19 +135,68 @@ class ConnectFourBoard:
                         score += 1
         return score
 
-    def heuristicEval4(self, piece):
-        own_threats = self.heuristicConsecutivePieces(piece)
+    def heuristicEval2(self, piece):
+        own_threats = 10 * self.heuristicConsecutivePieces(piece)
         opponent_piece = 1 if piece == 2 else 2
-        opponent_threats = self.heuristicConsecutivePieces(opponent_piece)
+        opponent_threats = 20 * self.heuristicConsecutivePieces(opponent_piece)
+
         return own_threats - opponent_threats
+
+    # heuristic3
+    def heuristicEval3(self, piece):
+        score = 0
+        consecutive_length = 4
+
+        for row in range(self.rows):
+            for col in range(self.cols - consecutive_length + 1):
+                set_pieces = [
+                    self.board[row][col + i] for i in range(consecutive_length)
+                ]
+                score += self.calculateSetScore(set_pieces, piece)
+
+        for row in range(self.rows - consecutive_length + 1):
+            for col in range(self.cols):
+                set_pieces = [
+                    self.board[row + i][col] for i in range(consecutive_length)
+                ]
+                score += self.calculateSetScore(set_pieces, piece)
+
+        for row in range(consecutive_length - 1, self.rows):
+            for col in range(self.cols - consecutive_length + 1):
+                set_pieces = [
+                    self.board[row - i][col + i] for i in range(consecutive_length)
+                ]
+                score += self.calculateSetScore(set_pieces, piece)
+
+        for row in range(self.rows - consecutive_length + 1):
+            for col in range(self.cols - consecutive_length + 1):
+                set_pieces = [
+                    self.board[row + i][col + i] for i in range(consecutive_length)
+                ]
+                score += self.calculateSetScore(set_pieces, piece)
+
+        return score
+
+    def calculateSetScore(self, set_pieces, piece):
+        # Check if the set is occupied only by the specified player
+        if all(cell == piece or cell == 0 for cell in set_pieces):
+            # Count the number of pieces the player has in the set
+            return set_pieces.count(piece)
+        else:
+            return 0
 
 
 class Play:
-    def __init__(self):
+    def __init__(self, mode="human_vs_computer"):
         self.board = ConnectFourBoard()
+        self.mode = mode
+        self.player1_piece = 1
+        self.player2_piece = 2
+        self.player1_heuristic = ConnectFourBoard.heuristicEval1
+        self.player2_heuristic = ConnectFourBoard.heuristicEval2
 
     def humanTurn(self):
-        print("human turn!!!")
+        print("Human's turn!!!")
         possible_moves = self.board.getPossibleMoves()
         print("Possible moves:", possible_moves)
         col = int(input("Enter your move (column number): "))
@@ -155,21 +207,22 @@ class Play:
             row = max(
                 [r for r in range(self.board.rows) if self.board.board[r][col] == 0]
             )
-            self.board.makeMove(row, col, 1)
+            self.board.makeMove(row, col, self.player1_piece)
 
-    def computerTurn(self):
-        print("computer turn!!!")
+    def computerTurn(self, player_piece, player_heuristic):
+        print("Player's turn!!!")
         _, move = self.minimaxAlphaBetaPruning(
-            self.board, 5, float("-inf"), float("inf"), True
+            self.board, 5, float("-inf"), float("inf"), True, player_heuristic
         )
-        self.board.makeMove(move[0], move[1], 2)
+        self.board.makeMove(move[0], move[1], player_piece)
 
-    def minimaxAlphaBetaPruning(self, board, depth, alpha, beta, maximizingPlayer):
+    def minimaxAlphaBetaPruning(
+        self, board, depth, alpha, beta, maximizingPlayer, heuristic_function
+    ):
         if depth == 0 or board.gameOver():
-            return board.heuristicEval5(2), None
+            return heuristic_function(board, 2), None
 
         possible_moves = board.getPossibleMoves()
-        # print(possible_moves)
 
         if maximizingPlayer:
             maxEval = float("-inf")
@@ -178,7 +231,7 @@ class Play:
                 row = max([r for r in range(board.rows) if board.board[r][col] == 0])
                 board.makeMove(row, col, 2)
                 eval, _ = self.minimaxAlphaBetaPruning(
-                    board, depth - 1, alpha, beta, False
+                    board, depth - 1, alpha, beta, False, heuristic_function
                 )
                 board.makeMove(row, col, 0)
                 if eval > maxEval:
@@ -187,7 +240,6 @@ class Play:
                 alpha = max(alpha, eval)
                 if beta <= alpha:
                     break
-            # print(bestMove)
             return maxEval, bestMove
         else:
             minEval = float("inf")
@@ -196,7 +248,7 @@ class Play:
                 row = max([r for r in range(board.rows) if board.board[r][col] == 0])
                 board.makeMove(row, col, 1)
                 eval, _ = self.minimaxAlphaBetaPruning(
-                    board, depth - 1, alpha, beta, True
+                    board, depth - 1, alpha, beta, True, heuristic_function
                 )
                 board.makeMove(row, col, 0)
                 if eval < minEval:
@@ -205,25 +257,4 @@ class Play:
                 beta = min(beta, eval)
                 if beta <= alpha:
                     break
-            # print(bestMove)
             return minEval, bestMove
-
-
-# Example usage:
-game = Play()
-
-while not game.board.gameOver():
-    game.board.drawBoard()
-    game.humanTurn()
-    if game.board.gameOver():
-        break
-    game.board.drawBoard()
-    game.computerTurn()
-
-game.board.drawBoard()
-if game.board.win(1):
-    print("You win!")
-elif game.board.win(2):
-    print("Computer wins!")
-else:
-    print("It's a draw!")

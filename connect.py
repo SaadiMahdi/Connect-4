@@ -19,6 +19,12 @@ class ConnectFourBoard:
                     print(cell, end=" | ")
             print("\n" + "-" * (self.cols * 4 - 1))
 
+    def get_board(self):
+        return self.board.tolist()
+
+    def set_board(self, board):
+        self.board = np.array(board)
+
     def getPossibleMoves(self):
         return [col for col in range(self.cols) if self.board[0][col] == 0]
 
