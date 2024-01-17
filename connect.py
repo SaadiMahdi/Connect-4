@@ -67,7 +67,7 @@ class ConnectFourBoard:
         score = 0
 
         score += 250 * self.countConsecutive(piece, 4)  # Four in a row
-        score += 50 * self.countConsecutive(piece, 3)  # Three in a row
+        score += 90 * self.countConsecutive(piece, 3)  # Three in a row
         score += 10 * self.countConsecutive(piece, 2)  # Two in a row
         score += 3 * self.countConsecutive(piece, 1)  # One in a row
 
@@ -141,7 +141,7 @@ class ConnectFourBoard:
     def heuristicEval2(self, piece):
         own_threats = 10 * self.heuristicConsecutivePieces(piece)
         opponent_piece = 1 if piece == 2 else 2
-        opponent_threats = 20 * self.heuristicConsecutivePieces(opponent_piece)
+        opponent_threats = 200 * self.heuristicConsecutivePieces(opponent_piece)
 
         return own_threats - opponent_threats
 
@@ -187,6 +187,119 @@ class ConnectFourBoard:
             return set_pieces.count(piece)
         else:
             return 0
+
+    def heuristicEval4(self, piece):
+        weights = {
+            "center_control": 1.0,
+            "mobility": 1.0,
+            "block_threats": 1.0,
+            "corner_control": 1.0,
+            "piece_count": 1.0,
+            "connectivity": 1.0,
+            "open_columns": 1.0,
+            "threat_analysis": 1.0,
+        }
+
+        score = 0
+
+        if self.is_early_game():
+            weights["center_control"] = 2.0
+            weights["open_columns"] = 0.5
+
+        if self.is_late_game():
+            weights["connectivity"] = 2
+            weights["block_threats"] = 1.5
+
+        score += weights["center_control"] * self.centerControlHeuristic(piece)
+        score += weights["mobility"] * self.mobilityHeuristic(piece)
+        score += weights["block_threats"] * self.blockThreatsHeuristic(piece)
+        score += weights["corner_control"] * self.cornerControlHeuristic(piece)
+        score += weights["piece_count"] * self.pieceCountHeuristic(piece)
+        score += weights["connectivity"] * self.connectivityHeuristic(piece)
+        score += weights["open_columns"] * self.openColumnsHeuristic(piece)
+        score += weights["threat_analysis"] * self.threatAnalysisHeuristic(piece)
+
+        return score
+
+    def is_early_game(self):
+        # Placeholder logic, adjust based on your understanding of early game conditions
+        return np.count_nonzero(self.board) < 8
+
+    def is_late_game(self):
+        # Placeholder logic, adjust based on your understanding of late game conditions
+        return np.count_nonzero(self.board) > 12
+
+    def centerControlHeuristic(self, piece):
+        center_cols = [2, 3, 4]
+        center_control = sum(
+            1
+            for col in center_cols
+            for row in range(self.rows)
+            if self.board[row][col] == piece
+        )
+        return center_control
+
+    def mobilityHeuristic(self, piece):
+        possible_moves = self.getPossibleMoves()
+        return len(possible_moves)
+
+    def blockThreatsHeuristic(self, piece):
+        opponent_piece = 1 if piece == 2 else 2
+        opponent_threats = self.countConsecutive(opponent_piece, 3)
+        return -opponent_threats  # Penalize blocking opponent threats
+
+    def cornerControlHeuristic(self, piece):
+        corners = [(0, 0), (0, 6), (5, 0), (5, 6)]
+        corner_control = sum(1 for row, col in corners if self.board[row][col] == piece)
+        return corner_control
+
+    def pieceCountHeuristic(self, piece):
+        player_pieces = np.count_nonzero(self.board == piece)
+        return player_pieces
+
+    def connectivityHeuristic(self, piece):
+        connected_pieces = 0
+        for row in range(self.rows):
+            for col in range(self.cols):
+                if self.board[row][col] == piece:
+                    # Check horizontally, vertically, and diagonally for connected pieces
+                    if col + 3 < self.cols and all(
+                        self.board[row][col + i] == piece for i in range(4)
+                    ):
+                        connected_pieces += 1
+                    if row + 3 < self.rows and all(
+                        self.board[row + i][col] == piece for i in range(4)
+                    ):
+                        connected_pieces += 1
+                    if (
+                        row + 3 < self.rows
+                        and col + 3 < self.cols
+                        and all(self.board[row + i][col + i] == piece for i in range(4))
+                    ):
+                        connected_pieces += 1
+                    if (
+                        row - 3 >= 0
+                        and col + 3 < self.cols
+                        and all(self.board[row - i][col + i] == piece for i in range(4))
+                    ):
+                        connected_pieces += 1
+        return connected_pieces
+
+    def openColumnsHeuristic(self, piece):
+        open_columns = sum(1 for col in range(self.cols) if self.board[0][col] == 0)
+        return open_columns
+
+    def threatAnalysisHeuristic(self, piece):
+        threats = 0
+        for row in range(self.rows):
+            for col in range(self.cols):
+                if self.board[row][col] == 0:
+                    # Check if placing a piece at this position creates a threat
+                    self.board[row][col] = piece
+                    if self.win(piece):
+                        threats += 1
+                    self.board[row][col] = 0  # Undo the move
+        return threats
 
 
 class Play:
@@ -286,44 +399,44 @@ class Play:
                     break
             return minEval, bestMove
 
-    def monteCarlo(self, simulations=1000):
-        current_player = 2  # Assuming computer plays first
-        best_score = float("-inf")
-        best_move = None
+    # def monteCarlo(self, simulations=1000):
+    #     current_player = 2  # Assuming computer plays first
+    #     best_score = float("-inf")
+    #     best_move = None
 
-        for col in self.board.getPossibleMoves():
-            row = max(
-                [r for r in range(self.board.rows) if self.board.board[r][col] == 0]
-            )
-            self.board.makeMove(row, col, current_player)
-            total_score = 0
+    #     for col in self.board.getPossibleMoves():
+    #         row = max(
+    #             [r for r in range(self.board.rows) if self.board.board[r][col] == 0]
+    #         )
+    #         self.board.makeMove(row, col, current_player)
+    #         total_score = 0
 
-            for _ in range(simulations):
-                temp_board = copy.deepcopy(self.board)  # Make a copy for simulation
-                total_score += self.simulateRandomGame(temp_board, current_player)
+    #         for _ in range(simulations):
+    #             temp_board = copy.deepcopy(self.board)  # Make a copy for simulation
+    #             total_score += self.simulateRandomGame(temp_board, current_player)
 
-            average_score = total_score / simulations
+    #         average_score = total_score / simulations
 
-            if average_score > best_score:
-                best_score = average_score
-                best_move = (row, col)
+    #         if average_score > best_score:
+    #             best_score = average_score
+    #             best_move = (row, col)
 
-            self.board.makeMove(row, col, 0)  # Undo the move for next iteration
+    #         self.board.makeMove(row, col, 0)  # Undo the move for next iteration
 
-        return best_move
+    #     return best_move
 
-    def simulateRandomGame(self, board, current_player):
-        while not board.gameOver():
-            possible_moves = board.getPossibleMoves()
-            random_move = random.choice(possible_moves)
-            row = max(
-                [r for r in range(board.rows) if board.board[r][random_move] == 0]
-            )
-            board.makeMove(row, random_move, current_player)
-            current_player = 3 - current_player  # Switch player (1 to 2, or 2 to 1)
-        if board.win(2):  # Assuming computer is player 2
-            return 1  # Computer wins
-        elif board.win(1):
-            return -1  # Human wins
-        else:
-            return 0  # It's a draw
+    # def simulateRandomGame(self, board, current_player):
+    #     while not board.gameOver():
+    #         possible_moves = board.getPossibleMoves()
+    #         random_move = random.choice(possible_moves)
+    #         row = max(
+    #             [r for r in range(board.rows) if board.board[r][random_move] == 0]
+    #         )
+    #         board.makeMove(row, random_move, current_player)
+    #         current_player = 3 - current_player  # Switch player (1 to 2, or 2 to 1)
+    #     if board.win(2):  # Assuming computer is player 2
+    #         return 1  # Computer wins
+    #     elif board.win(1):
+    #         return -1  # Human wins
+    #     else:
+    #         return 0  # It's a draw

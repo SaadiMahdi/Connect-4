@@ -11,10 +11,7 @@
     </h1>
     <div class="settings">
       <div>
-        <!-- <input type="radio" id="single-p" @click="resetBoard()" value="SinglePlayer" />
-        <label for="single-p">Player vs AI</label> -->
-        <input type="radio" id="two-p" @click="playAIvsAI()" value="TwoPlayers" />
-        <label for="two-p">AI vs AI</label>
+        <button @click="playAIvsAI()">AI VS AI</button>
       </div>
     </div>
     <div class="wrapper">

@@ -43,7 +43,7 @@ def play_ai_turn():
         alpha=float("-inf"),
         beta=float("inf"),
         maximizingPlayer=True,
-        heuristic_function=ConnectFourBoard.heuristicEval3,
+        heuristic_function=ConnectFourBoard.heuristicEval4,
     )
 
     board.makeMove(move[0], move[1], play.player2_piece)
@@ -55,11 +55,7 @@ def play_ai_turn():
 
     emit(
         "update_board",
-        {
-            "board": board.get_board(),
-            "game_over": game_over,
-            "player": "AI",
-        },
+        {"board": board.get_board(), "game_over": game_over, "turn": "Computer"},
         broadcast=True,
     )
 
@@ -112,7 +108,7 @@ def play_ai_vs_ai():
             alpha=float("-inf"),
             beta=float("inf"),
             maximizingPlayer=True,
-            heuristic_function=ConnectFourBoard.heuristicEval3,
+            heuristic_function=ConnectFourBoard.heuristicEval1,
         )
 
         board.makeMove(move[0], move[1], play.player1_piece)
@@ -143,7 +139,7 @@ def play_ai_vs_ai():
             alpha=float("-inf"),
             beta=float("inf"),
             maximizingPlayer=True,
-            heuristic_function=ConnectFourBoard.heuristicEval2,
+            heuristic_function=ConnectFourBoard.heuristicEval3,
         )
 
         board.makeMove(move[0], move[1], play.player2_piece)
